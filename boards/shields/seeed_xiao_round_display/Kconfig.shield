@@ -3,3 +3,7 @@
 
 config SHIELD_SEEED_XIAO_ROUND_DISPLAY
 	def_bool $(shields_list_contains,seeed_xiao_round_display)
+
+config SHIELD_SEEED_XIAO_ROUND_DISPLAY_BACKLIGHT
+	bool "Screen Backlight"
+	default y

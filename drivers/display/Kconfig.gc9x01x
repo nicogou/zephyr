@@ -8,3 +8,11 @@ config GC9X01X
 	select SPI
 	help
 	  Enable driver for GC9X01X display driver.
+
+config GC9X01X_BACKLIGHT
+	bool "GC9X01X backlight PWM control"
+	default n
+	depends on GC9X01X
+	select PWM
+	help
+		Enable GC9X01X backlight control

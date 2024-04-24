@@ -47,6 +47,11 @@ properties:
       Data/Command pin of the GC9X01X is to be configured
       high(1) for data, low(0) for command.
 
+  pwms:
+    type: phandle-array
+    description: |
+      Backlight PWM control pin
+
   orientation:
     type: string
     default: "normal"

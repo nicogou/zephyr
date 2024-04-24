@@ -39,6 +39,7 @@ struct gc9x01x_data {
 struct gc9x01x_config {
 	struct spi_dt_spec spi;
 	struct gpio_dt_spec cmd_data;
+	struct pwm_dt_spec backlight;
 	struct gpio_dt_spec reset;
 	uint8_t pixel_format;
 	uint16_t orientation;
@@ -456,6 +457,30 @@ static int gc9x01x_set_orientation(const struct device *dev,
 	return 0;
 }
 
+static int gc9x01x_set_brightness(const struct device *dev, const uint8_t brightness)
+{
+#ifdef CONFIG_GC9X01X_BACKLIGHT
+	const struct gc9x01x_config *config = dev->config;
+
+	if (config->backlight.dev == NULL) {
+		LOG_ERR("No backlight pin specified");
+		return -ENODEV;
+	}
+	if (brightness > 100) {
+		LOG_ERR("Brightness values > 100 are not supported (%u)", brightness);
+		return -EINVAL;
+	}
+
+	pwm_set_pulse_dt(&config->backlight,
+			 (uint32_t)((uint64_t)config->backlight.period * brightness / 100));
+
+	return 0;
+#else
+	LOG_ERR("Not supported. Missing CONFIG_GC9X01X_BACKLIGHT.");
+	return -ENOTSUP;
+#endif
+}
+
 static int gc9x01x_configure(const struct device *dev)
 {
 	const struct gc9x01x_config *config = dev->config;
@@ -523,6 +548,15 @@ static int gc9x01x_init(const struct device *dev)
 			return ret;
 		}
 	}
+
+#ifdef CONFIG_GC9X01X_BACKLIGHT
+	if (config->backlight.dev != NULL) {
+		if (!pwm_is_ready_dt(&config->backlight)) {
+			LOG_ERR("Backlight PWM device not ready");
+			return -ENODEV;
+		}
+	}
+#endif
 
 	gc9x01x_hw_reset(dev);
 
@@ -598,7 +632,7 @@ static int gc9x01x_write(const struct device *dev, const uint16_t x, const uint1
 	}
 
 	ret = gc9x01x_transmit(dev, GC9X01X_CMD_MEMWR, write_data_start,
-				  desc->width * data->bytes_per_pixel * write_h);
+			       desc->width * data->bytes_per_pixel * write_h);
 	if (ret < 0) {
 		return ret;
 	}
@@ -649,6 +683,7 @@ static void gc9x01x_get_capabilities(const struct device *dev,
 static int gc9x01x_pm_action(const struct device *dev, enum pm_device_action action)
 {
 	int ret;
+	const struct gc9x01x_config *config = dev->config;
 
 	switch (action) {
 	case PM_DEVICE_ACTION_RESUME:
@@ -662,6 +697,16 @@ static int gc9x01x_pm_action(const struct device *dev, enum pm_device_action act
 		break;
 	}
 
+#ifdef CONFIG_GC9X01X_BACKLIGHT
+	if (!ret) {
+		ret = pm_device_action_run(config->backlight.dev, action);
+		if (ret && (ret != -EALREADY)) {
+			LOG_DBG("Cannot switch Backlight %p power state (err = %d)",
+				config->backlight.dev, ret);
+		}
+	}
+#endif
+
 	return ret;
 }
 #endif /* CONFIG_PM_DEVICE */
@@ -674,6 +719,7 @@ static const struct display_driver_api gc9x01x_api = {
 	.get_capabilities = gc9x01x_get_capabilities,
 	.set_pixel_format = gc9x01x_set_pixel_format,
 	.set_orientation = gc9x01x_set_orientation,
+	.set_brightness = gc9x01x_set_brightness,
 };
 
 #define GC9X01X_INIT(inst)                                                                         \
@@ -681,6 +727,7 @@ static const struct display_driver_api gc9x01x_api = {
 	static const struct gc9x01x_config gc9x01x_config_##inst = {                               \
 		.spi = SPI_DT_SPEC_INST_GET(inst, SPI_OP_MODE_MASTER | SPI_WORD_SET(8), 0),        \
 		.cmd_data = GPIO_DT_SPEC_INST_GET(inst, cmd_data_gpios),                           \
+		.backlight = PWM_DT_SPEC_INST_GET_OR(inst, {0}),                                   \
 		.reset = GPIO_DT_SPEC_INST_GET_OR(inst, reset_gpios, {0}),                         \
 		.pixel_format = DT_INST_PROP(inst, pixel_format),                                  \
 		.orientation = DT_INST_ENUM_IDX(inst, orientation),                                \

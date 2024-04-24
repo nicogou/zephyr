@@ -9,6 +9,9 @@
 #define ZEPHYR_DRIVERS_DISPLAY_GC9X01X_H_
 
 #include <zephyr/sys/util.h>
+#ifdef CONFIG_GC9X01X_BACKLIGHT
+#include <zephyr/drivers/pwm.h>
+#endif
 
 /* Command registers */
 #define GC9X01X_CMD_SLPIN     0x10U /* Enter Sleep Mode */
